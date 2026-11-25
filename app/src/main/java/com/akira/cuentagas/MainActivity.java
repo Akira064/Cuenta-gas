@@ -1,6 +1,8 @@
 package com.akira.cuentagas;
 
 import android.app.Activity;
+import android.content.ActivityNotFoundException;
+import android.content.Intent;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
@@ -48,6 +50,25 @@ public class MainActivity extends Activity {
         public void copy(String text) {
             ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
             if (cm != null) cm.setPrimaryClip(ClipData.newPlainText("Cuenta del día", text));
+        }
+
+        @JavascriptInterface
+        public void whatsapp(final String text) {
+            runOnUiThread(() -> {
+                Intent i = new Intent(Intent.ACTION_SEND);
+                i.setType("text/plain");
+                i.putExtra(Intent.EXTRA_TEXT, text);
+                for (String pkg : new String[]{"com.whatsapp", "com.whatsapp.w4b"}) {
+                    try {
+                        i.setPackage(pkg);
+                        startActivity(i);
+                        return;
+                    } catch (ActivityNotFoundException ignored) {
+                    }
+                }
+                i.setPackage(null);
+                startActivity(Intent.createChooser(i, "Enviar resumen"));
+            });
         }
     }
 }

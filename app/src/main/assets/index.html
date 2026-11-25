@@ -29,6 +29,8 @@ header input{border:0;max-width:220px;color:#17120d;background:#fff}
 button{font:inherit;font-weight:700;min-height:44px;border-radius:10px;border:0;padding:0 16px;cursor:pointer;background:var(--ink);color:var(--bg)}
 button:focus-visible{outline:3px solid var(--or);outline-offset:2px}
 button.ghost{background:transparent;color:var(--ink);border:1.5px solid var(--line)}
+a.wa{display:inline-flex;align-items:center;min-height:44px;padding:0 16px;border-radius:10px;background:#1fa855;color:#fff;font-weight:700;text-decoration:none}
+a.wa:focus-visible{outline:3px solid var(--or);outline-offset:2px}
 button.or{background:var(--or);color:#fff}
 .grid{display:grid;grid-template-columns:minmax(0,1.3fr) repeat(3,minmax(0,1fr));gap:8px;align-items:center}
 .grid .h{font-size:13px;color:var(--mute);text-align:center;line-height:1.2}
@@ -123,6 +125,7 @@ tr.tot td{border:0;font-size:22px;font-weight:800;padding-top:12px}
   <table><tbody id="res"></tbody></table>
   <div class="actions">
     <button class="or" id="guardar">Guardar día</button>
+    <a class="wa" id="wa" href="https://wa.me/" target="_blank" rel="noopener">Enviar por WhatsApp</a>
     <button class="ghost" id="copiar">Copiar resumen</button>
     <button class="ghost" id="nuevo">Día nuevo</button>
   </div>
@@ -262,6 +265,9 @@ document.addEventListener('click',e=>{
   else if(b.id==='nuevo'){d=blank();fill();msg('Día nuevo empezado')}
   else if(b.id==='copiar'){const t=resumen();if(window.Android&&Android.copy){Android.copy(t);msg('Resumen copiado')}else navigator.clipboard?.writeText(t).then(()=>msg('Resumen copiado'),()=>msg('No se pudo copiar'))}
 });
+$('wa').addEventListener('click',e=>{const t=resumen();
+  if(window.Android&&Android.whatsapp){e.preventDefault();Android.whatsapp(t);return}
+  $('wa').href='https://wa.me/?text='+encodeURIComponent(t)});
 fill();renderHist();
 }
 </script>
