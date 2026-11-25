@@ -27,19 +27,21 @@ jobs:
         env:
           KS: ${{ secrets.DEBUG_KEYSTORE }}
         run: |
-          if [ -n "$KS" ]; then
-            mkdir -p ~/.android
-            echo "$KS" | base64 -d > ~/.android/debug.keystore
-            echo "Usando firma fija"
-          else
-            echo "::warning::Falta el secreto DEBUG_KEYSTORE: la APK no se podrá instalar encima de la anterior"
-          fi
+          if [ -z "$KS" ]; then echo "::error::Falta el secreto DEBUG_KEYSTORE"; exit 1; fi
+          echo "$KS" | tr -d ' \r\n' | base64 -d > "$RUNNER_TEMP/firma.keystore"
+          echo "KEYSTORE_FILE=$RUNNER_TEMP/firma.keystore" >> "$GITHUB_ENV"
+          keytool -list -v -keystore "$RUNNER_TEMP/firma.keystore" -storepass android | grep SHA256:
 
       - name: Compilar APK
         run: gradle assembleDebug --no-daemon
 
       - name: Renombrar APK
         run: cp app/build/outputs/apk/debug/app-debug.apk CuentaGas.apk
+
+      - name: Comprobar firma
+        run: |
+          AS=$(ls $ANDROID_HOME/build-tools/*/apksigner | tail -1)
+          $AS verify --print-certs CuentaGas.apk | grep SHA-256
 
       - uses: actions/upload-artifact@v4
         with:
