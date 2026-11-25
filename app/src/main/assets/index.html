@@ -58,6 +58,7 @@ tr.sec td{border:0;padding-top:16px;font-weight:800;font-size:13px;color:var(--m
 tr.sub td{font-weight:800;border-bottom:2px solid var(--ink)}
 td.mute{color:var(--mute);font-weight:500}
 .pvpag select{max-width:42%}
+td.det{font-size:14px;color:var(--mute);padding:2px 0 4px 14px;border:0;text-align:left;font-weight:500}
 tr.tot td{border:0;font-size:22px;font-weight:800;padding-top:12px}
 .m{color:var(--neg)}.p{color:var(--pos)}
 .bar{position:fixed;left:0;right:0;bottom:0;background:var(--ink);color:var(--bg);padding:12px max(5vw,16px) calc(12px + env(safe-area-inset-bottom));z-index:5}
@@ -153,6 +154,8 @@ const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'
 const load=(k,d)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}};
 const save=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
 const val=x=>typeof x==='object'&&x?num(x.q)*num(precios['n_'+x.t]):num(x);
+const bySum=k=>{const m={};d.pagos[k].forEach(x=>{if(typeof x==='object'&&x)m[x.t]=(m[x.t]||0)+num(x.q)});return T.filter(t=>m[t.k]).map(t=>`${m[t.k]} ${t.n}`).join(', ')};
+const payLines=k=>d.pagos[k].map(x=>typeof x==='object'&&x?(()=>{const t=T.find(y=>y.k===x.t);return `${num(x.q)} ${t.n} × ${eur(num(precios['n_'+x.t]))} = ${eur(val(x))}`})():`Importe ${eur(val(x))}`);
 const today=()=>{const d=new Date();return new Date(d-d.getTimezoneOffset()*6e4).toISOString().slice(0,10)};
 
 let precios=load('gas_precios',{});
@@ -207,7 +210,7 @@ function calc(){
   const tr=(a,v,c='',pre)=>`<tr${c==='sub'?' class="sub"':''}><td>${a}</td><td class="${c}">${pre??(v<0?'− ':'')}${eur(Math.abs(v))}</td></tr>`;
   let h=`<tr class="sec"><td colspan="2">Venta a clientes</td></tr>`+det.map(x=>tr(`${x.n}: ${x.v} × ${eur(x.pn)}`,x.imp)).join('')+tr(`Venta total (${bot} botellas)`,bruto,'sub')+
     pvAct.map(x=>tr(`${esc(x.n)} (${x.nb} bot.) a precio normal`,-x.bn,'m')).join('')+
-    P.filter(p=>tp[p.k]).map(p=>tr(p.n,-tp[p.k],'m')).join('')+tr('Efectivo de clientes',efCli,'sub');
+    P.filter(p=>tp[p.k]).map(p=>tr(p.n+(bySum(p.k)?` (${bySum(p.k)})`:''),-tp[p.k],'m')+(BYB.includes(p.k)?payLines(p.k).map(l=>`<tr><td colspan="2" class="det">· ${esc(l)}</td></tr>`).join(''):'')).join('')+tr('Efectivo de clientes',efCli,'sub');
   if(pvAct.length)h+=`<tr class="sec"><td colspan="2">Puntos de venta</td></tr>`+
     pvAct.map(x=>x.fp==='ef'?tr(`${esc(x.n)} · efectivo`,x.pag,'p'):tr(`${esc(x.n)} · ${FP[x.fp].toLowerCase()} (no suma)`,x.pag,'mute','')).join('')+
     tr('Efectivo de puntos de venta',pdvE,'sub');
@@ -243,7 +246,7 @@ const msg=t=>{$('msg').textContent=t;setTimeout(()=>{if($('msg').textContent===t
 function resumen(){
   const r=calc(),f=d.fecha.split('-').reverse().join('/');
   return [`Cuenta del ${f}`,...T.map(t=>{const v=num(d.sal[t.k])-num(d.lle[t.k]);return (d.sal[t.k]||d.lle[t.k])?`${t.n}: salen ${num(d.sal[t.k])}${d.cargas.length>1?` (${d.cargas.map(c=>num(c[t.k])).join('+')})`:''}, llegan ${num(d.lle[t.k])}, vendidas ${v}`:null}).filter(Boolean),
-   ...r.det.map(x=>`${x.n}: ${x.v} × ${eur(x.pn)} = ${eur(x.imp)}`),`Venta total: ${eur(r.bruto)}`,...r.pvr.filter(x=>x.nb||x.pag).map(x=>`${x.n} (${T.filter(t=>num(x.q[t.k])).map(t=>num(x.q[t.k])+' '+t.n).join(', ')}) a precio normal: −${eur(x.bn)}`),...P.filter(p=>r.tp[p.k]).map(p=>`${p.n}: −${eur(r.tp[p.k])}`),`Efectivo de clientes: ${eur(r.efCli)}`,
+   ...r.det.map(x=>`${x.n}: ${x.v} × ${eur(x.pn)} = ${eur(x.imp)}`),`Venta total: ${eur(r.bruto)}`,...r.pvr.filter(x=>x.nb||x.pag).map(x=>`${x.n} (${T.filter(t=>num(x.q[t.k])).map(t=>num(x.q[t.k])+' '+t.n).join(', ')}) a precio normal: −${eur(x.bn)}`),...P.filter(p=>r.tp[p.k]).flatMap(p=>[`${p.n}${bySum(p.k)?` (${bySum(p.k)})`:''}: −${eur(r.tp[p.k])}`,...(BYB.includes(p.k)?payLines(p.k).map(l=>`   · ${l}`):[])]),`Efectivo de clientes: ${eur(r.efCli)}`,
    ...r.pvr.filter(x=>x.nb||x.pag).map(x=>`${x.n} pagó ${eur(x.pag)} (${FP[x.fp].toLowerCase()})`),`Efectivo de puntos de venta: ${eur(r.pdvE)}`,`EFECTIVO A ENTREGAR: ${eur(r.ef)}`].join('\n');
 }
 function renderHist(){
