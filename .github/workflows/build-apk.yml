@@ -23,6 +23,18 @@ jobs:
         with:
           gradle-version: '8.7'
 
+      - name: Firma fija
+        env:
+          KS: ${{ secrets.DEBUG_KEYSTORE }}
+        run: |
+          if [ -n "$KS" ]; then
+            mkdir -p ~/.android
+            echo "$KS" | base64 -d > ~/.android/debug.keystore
+            echo "Usando firma fija"
+          else
+            echo "::warning::Falta el secreto DEBUG_KEYSTORE: la APK no se podrá instalar encima de la anterior"
+          fi
+
       - name: Compilar APK
         run: gradle assembleDebug --no-daemon
 
