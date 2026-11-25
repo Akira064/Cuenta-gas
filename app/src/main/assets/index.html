@@ -89,9 +89,12 @@ tr.tot td{border:0;font-size:22px;font-weight:800;padding-top:12px}
 
 <div class="wrap">
 <section class="band">
-  <h2>Carga</h2>
+  <h2>Cargas del almacén</h2>
+  <div id="cargas"></div>
+  <button class="ghost" id="addcg">+ Otra carga</button>
+  <h2 style="margin-top:22px">Resumen de carga</h2>
   <div class="grid" id="carga"></div>
-  <p class="note">Vendidas = salida − llegada (incluye las dejadas en punto de venta).</p>
+  <p class="note">Salida = suma de todas las cargas. Vendidas = salida − llegada (incluye las dejadas en punto de venta).</p>
 </section>
 
 <section class="band" style="padding-top:0">
@@ -151,15 +154,15 @@ const today=()=>{const d=new Date();return new Date(d-d.getTimezoneOffset()*6e4)
 
 let precios=load('gas_precios',{});
 let hist=load('gas_hist',{});
-const blank=()=>({fecha:today(),sal:{},lle:{},pv:[],pagos:{tarjeta:[],desc:[],online:[],transf:[]}});
+const blank=()=>({fecha:today(),sal:{},lle:{},cargas:[{}],pv:[],pagos:{tarjeta:[],desc:[],online:[],transf:[]}});
 let d=load('gas_borrador',null)||blank();
 let pvNames=load('gas_pvnames',[]);
-function norm(){if(!d.pv){d.pv=[];if(d.pdv&&T.some(t=>num(d.pdv[t.k])))d.pv.push({n:'Punto de venta',q:{...d.pdv},pag:''})}delete d.pdv}
+function norm(){if(!d.pv){d.pv=[];if(d.pdv&&T.some(t=>num(d.pdv[t.k])))d.pv.push({n:'Punto de venta',q:{...d.pdv},pag:''})}delete d.pdv;if(!d.cargas)d.cargas=[{...(d.sal||{})}];if(!d.cargas.length)d.cargas=[{}]}
 norm();
 
 $('carga').innerHTML='<div class="h"></div><div class="h">Salida</div><div class="h">Llegada</div><div class="h">Vendidas</div>'+
  T.map(t=>`<div class="bt"><i class="dot" style="background:${t.c}"></i><span>${t.n}</span></div>
- <input id="sal_${t.k}" inputmode="numeric" placeholder="0" aria-label="${t.n} salida">
+ <div class="sold" id="s_${t.k}">0</div>
  <input id="lle_${t.k}" inputmode="numeric" placeholder="0" aria-label="${t.n} llegada">
  <div class="sold" id="v_${t.k}">0</div>`).join('');
 
@@ -174,15 +177,16 @@ $('pagos').innerHTML=P.map(p=>`<div class="pay"><div class="top"><span>${p.n}</s
 
 function fill(){
   $('fecha').value=d.fecha;
-  T.forEach(t=>{$('sal_'+t.k).value=d.sal[t.k]??'';$('lle_'+t.k).value=d.lle[t.k]??'';
+  T.forEach(t=>{$('lle_'+t.k).value=d.lle[t.k]??'';
     $('pn_'+t.k).value=precios['n_'+t.k]??'';$('pp_'+t.k).value=precios['p_'+t.k]??''});
   if(!T.some(t=>precios['n_'+t.k]))$('precios').open=true;
-  renderPv();
+  renderPv();renderCg();
   calc();
 }
 function calc(){
   let bruto=0,pdvN=0,pdvE=0,bot=0;const det=[];
   T.forEach(t=>{
+    d.sal[t.k]=d.cargas.reduce((a,c)=>a+num(c[t.k]),0);$('s_'+t.k).textContent=d.sal[t.k];
     const v=num(d.sal[t.k])-num(d.lle[t.k]),pn=num(precios['n_'+t.k]);
     $('v_'+t.k).textContent=v;$('v_'+t.k).style.color=v<0?'var(--neg)':'';
     bot+=v;bruto+=v*pn;
@@ -212,11 +216,16 @@ function calc(){
 }
 document.addEventListener('input',e=>{
   const id=e.target.id,[a,k]=id.split('_');
+  if(e.target.dataset.cg!==undefined){d.cargas[+e.target.dataset.cg][e.target.dataset.f]=e.target.value;calc();return}
   if(e.target.dataset.pv!==undefined){const x=d.pv[+e.target.dataset.pv],f=e.target.dataset.f;if(f==='n')x.n=e.target.value;else if(f==='fp')x.fp=e.target.value;else if(f==='pag')x.pag=e.target.value;else x.q[f]=e.target.value;calc();return}
   if(id==='fecha'){d.fecha=e.target.value;save('gas_borrador',d);return}
-  if(a==='sal'||a==='lle'){d[a][k]=e.target.value;calc()}
+  if(a==='lle'){d[a][k]=e.target.value;calc()}
   else if(a==='pn'||a==='pp'){precios[(a==='pn'?'n_':'p_')+k]=e.target.value;save('gas_precios',precios);calc()}
 });
+function renderCg(){
+  $('cargas').innerHTML=d.cargas.map((c,i)=>`<div class="pv"><div class="head" style="align-items:center"><b style="flex:1">Carga ${i+1}</b>${d.cargas.length>1?`<button class="ghost" data-rmcg="${i}" aria-label="Quitar carga ${i+1}">×</button>`:''}</div>
+   <div class="pvq">${T.map(t=>`<div><label for="cg_${i}_${t.k}">${t.n}</label><input id="cg_${i}_${t.k}" data-cg="${i}" data-f="${t.k}" inputmode="numeric" placeholder="0" value="${esc(c[t.k]??'')}"></div>`).join('')}</div></div>`).join('');
+}
 function renderPv(){
   $('pvnames').innerHTML=pvNames.map(n=>`<option value="${esc(n)}">`).join('');
   $('pvs').innerHTML=d.pv.map((x,i)=>`<div class="pv"><div class="head"><input data-pv="${i}" data-f="n" list="pvnames" placeholder="Nombre del punto de venta" value="${esc(x.n||'')}" aria-label="Nombre"><button class="ghost" data-rmpv="${i}" aria-label="Quitar punto de venta">×</button></div>
@@ -230,7 +239,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.id.startsWi
 const msg=t=>{$('msg').textContent=t;setTimeout(()=>{if($('msg').textContent===t)$('msg').textContent=''},3000)};
 function resumen(){
   const r=calc(),f=d.fecha.split('-').reverse().join('/');
-  return [`Cuenta del ${f}`,...T.map(t=>{const v=num(d.sal[t.k])-num(d.lle[t.k]);return (d.sal[t.k]||d.lle[t.k])?`${t.n}: salen ${num(d.sal[t.k])}, llegan ${num(d.lle[t.k])}, vendidas ${v}`:null}).filter(Boolean),
+  return [`Cuenta del ${f}`,...T.map(t=>{const v=num(d.sal[t.k])-num(d.lle[t.k]);return (d.sal[t.k]||d.lle[t.k])?`${t.n}: salen ${num(d.sal[t.k])}${d.cargas.length>1?` (${d.cargas.map(c=>num(c[t.k])).join('+')})`:''}, llegan ${num(d.lle[t.k])}, vendidas ${v}`:null}).filter(Boolean),
    ...r.det.map(x=>`${x.n}: ${x.v} × ${eur(x.pn)} = ${eur(x.imp)}`),`Venta total: ${eur(r.bruto)}`,...r.pvr.filter(x=>x.nb||x.pag).map(x=>`${x.n} (${T.filter(t=>num(x.q[t.k])).map(t=>num(x.q[t.k])+' '+t.n).join(', ')}) a precio normal: −${eur(x.bn)}`),...P.filter(p=>r.tp[p.k]).map(p=>`${p.n}: −${eur(r.tp[p.k])}`),`Efectivo de clientes: ${eur(r.efCli)}`,
    ...r.pvr.filter(x=>x.nb||x.pag).map(x=>`${x.n} pagó ${eur(x.pag)} (${FP[x.fp].toLowerCase()})`),`Efectivo de puntos de venta: ${eur(r.pdvE)}`,`EFECTIVO A ENTREGAR: ${eur(r.ef)}`].join('\n');
 }
@@ -242,6 +251,8 @@ let pendingRm=null;
 document.addEventListener('click',e=>{
   const b=e.target.closest('button');if(!b)return;
   if(b.dataset.add)addPay(b.dataset.add);
+  else if(b.id==='addcg'){d.cargas.push({});renderCg();calc();$(`cg_${d.cargas.length-1}_but`).focus()}
+  else if(b.dataset.rmcg!==undefined){d.cargas.splice(+b.dataset.rmcg,1);renderCg();calc()}
   else if(b.id==='addpv'){d.pv.push({n:'',q:{},pag:'',fp:'ef'});renderPv();calc();$(`pvs`).lastElementChild.querySelector('input').focus()}
   else if(b.dataset.rmpv!==undefined){d.pv.splice(+b.dataset.rmpv,1);renderPv();calc()}
   else if(b.dataset.del){d.pagos[b.dataset.del].splice(+b.dataset.i,1);calc()}
